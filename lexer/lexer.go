@@ -2,6 +2,14 @@ package lexer
 
 import "github.com/WTBacon/goInterpreter/token"
 
+/*
+	字句解析器（レキサー）を表す構造体型.
+	input			: ソースコード
+	position 		: 常に最後に読んだ位置を示す（chの位置を示すインデクス）
+	readPosition 	: 次に読み込む位置を示す
+	ch         		: 現在検査中の文字
+}
+ */
 type Lexer struct {
 	input        string // ソースコード
 	position     int    // 常に最後に読んだ位置を示す（chの位置を示すインデクス）

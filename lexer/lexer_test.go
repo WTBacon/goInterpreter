@@ -6,27 +6,35 @@ import (
 )
 
 func TestNextToken(t *testing.T) {
-	input := `let five = 5;
-let ten = 10;
 
-let add = fn(x, y) {
-  x + y;
-};
+	/*
+		インプットとなるソースコード.
+	*/
+	input := `
+		let five = 5;
+		let ten = 10;
 
-let result = add(five, ten);
-!-/*5;
-5 < 10 > 5;
+		let add = fn(x, y) {
+			x + y;
+		};
 
-if (5 < 10) {
-	return true;
-} else {
-	return false;
-}
+		let result = add(five, ten);
+		!-/*5;
+		5 < 10 > 5;
 
-10 == 10;
-10 != 9;
-`
+		if (5 < 10) {
+			return true;
+		} else {
+			return false;
+		}
 
+		10 == 10;
+		10 != 9;
+		`
+
+	/*
+		ソースコードを字句解析器に入力した時に出力されるトークンの TokenType　と Literal.
+	*/
 	tests := []struct {
 		expectedType    token.TokenType
 		expectedLiteral string
@@ -109,6 +117,9 @@ if (5 < 10) {
 
 	l := New(input)
 
+	/*
+		input のソースコードとテストケースのトークンの TokenType と Literal が一致しているかテスト.
+	*/
 	for i, tt := range tests {
 		tok := l.NextToken()
 
