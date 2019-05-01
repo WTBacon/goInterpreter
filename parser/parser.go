@@ -20,6 +20,9 @@ type Parser struct {
 	curToken  token.Token
 	peekToken token.Token
 	errors    []string
+
+	prefixParseFns map[token.TokenType]prefixParseFn
+	infixParseFns  map[token.TokenType]infixParseFn
 }
 
 /*
@@ -161,4 +164,22 @@ func (p *Parser) peekTokenIs(t token.TokenType) bool {
 	return p.peekToken.Type == t
 }
 
+/*
+	任意のトークンタイプに遭遇するたびに, 対応する構文解析関数が呼ばれる.
+	これらの関数は適切な式を構文解析し, その式を表現するASTノードを返す.
+	トークンタイプごとに, 最大２つの構文解析関数が関連づけられる.
+ */
+type (
+	prefixParseFn func() ast.Expression              // 前置構文解析関数（prefix parsing function）
+	infixParseFn func(ast.Expression) ast.Expression // 中置構文解析関数（infix parsing function）
+)
 
+/*
+	prefixParseFns マップと infixParseFns マップにエントリを追加するヘルパーメソッド.
+ */
+func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
+	p.prefixParseFns[tokenType] = fn
+}
+func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
+	p.infixParseFns[tokenType] = fn
+}
