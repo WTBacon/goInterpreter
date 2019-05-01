@@ -56,6 +56,9 @@ func TestLetStatements(t *testing.T) {
 	}
 }
 
+/*
+	letStatements のテスト
+ */
 func testLetStatements(t *testing.T, s ast.Statement, name string) bool {
 	if s.TokenLiteral() != "let" {
 		t.Errorf("s.TokenLiteral not 'let'. got=%q", s.TokenLiteral())
@@ -79,6 +82,38 @@ func testLetStatements(t *testing.T, s ast.Statement, name string) bool {
 		return false
 	}
 	return true
+}
+
+/*
+	returnStatements のテスト
+ */
+func TestReturnStatements(t *testing.T){
+	input := `
+		return 5;
+		return 10;
+		return 993322;
+		`
+
+	l := lexer.New(input)
+	p := New(l)
+
+	program := p.ParserProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 3 {
+		t.Fatalf("program.Statements does not contain 3 statements. got=%d",len(program.Statements))
+	}
+
+	for _, stmt := range program.Statements {
+		returnStmt, ok := stmt.(*ast.ReturnStatement)
+		if !ok {
+			t.Errorf("stmt not *ast.returnStatement. got=%T",stmt)
+			continue
+		}
+		if returnStmt.TokenLiteral() != "return" {
+			t.Errorf("returnStmt.TokenLiteral not 'return', got %q", returnStmt.TokenLiteral())
+		}
+	}
 }
 
 /*

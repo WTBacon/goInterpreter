@@ -88,3 +88,19 @@ type Identifier struct {
  */
 func (i *Identifier) expressionNode()      {}
 func (i *Identifier) TokenLiteral() string { return i.Token.Literal }
+
+/*
+	return 文を表す構造体型.
+	Toke	 	: let 文を示すトークン
+	ReturnValue	: 返す式
+ */
+type ReturnStatement struct {
+	Token       token.Token // 'return' トークン
+	ReturnValue Expression
+}
+
+/*
+	Expression インターフェースと Node インターフェースを実装.
+ */
+func (rs *ReturnStatement) statementNode()       {}
+func (rs *ReturnStatement) TokenLiteral() string { return rs.Token.Literal }
