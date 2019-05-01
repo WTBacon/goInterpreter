@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"bytes"
 	"github.com/WTBacon/goInterpreter/token"
 )
 
@@ -12,10 +13,12 @@ import (
 /*
 	AST の全てのノードは Node interface を実装しなければならない.
 	つまり, TokenLiteral() メソッドを override する.
-	TokenLiteral() : ノードに関連づけられているトークンのリテラル値を返す.
+	TokenLiteral()	: ノードに関連づけられているトークンのリテラル値を返す.
+	String()		: デバッグ時に AST ノードの情報を表示したり, 他のASTノードと比較したりする.
 */
 type Node interface {
 	TokenLiteral() string
+	String() string
 }
 
 /*
@@ -45,6 +48,17 @@ type Program struct {
 }
 
 /*
+	バッファを作成して, それぞれの文の String() メソッドの戻り値をバッファに書き込み, 文字列として返す.
+ */
+func (p *Program) String() string {
+	var out bytes.Buffer
+	for _, s := range p.Statements {
+		out.WriteString(s.String())
+	}
+	return out.String()
+}
+
+/*
 	ルートノードのトークンのリテラルを返すメソッド.
  */
 func (p *Program) TokenLiteral() string {
@@ -56,7 +70,7 @@ func (p *Program) TokenLiteral() string {
 }
 
 /*
-	let 文を表す構造体型.
+	let 文を表す構造体型.（ex. let <identifier> = <expression>;）
 	Toke 	: let 文を示すトークン
 	Name	: 識別子の名前
 	Value	: 値を生成する式
@@ -68,14 +82,28 @@ type LetStatement struct {
 }
 
 /*
-	Statement インターフェースと Node インターフェースを実装.
+	Node インターフェースと Statement インターフェースを override.
  */
 func (ls *LetStatement) statementNode()       {}
 func (ls *LetStatement) TokenLiteral() string { return ls.Token.Literal }
+func (ls *LetStatement) String() string {
+	var out bytes.Buffer
+
+	out.WriteString(ls.TokenLiteral() + " ")
+	out.WriteString(ls.Name.String())
+	out.WriteString(" = ")
+
+	if ls.Value != nil {
+		out.WriteString(ls.Value.String())
+	}
+
+	out.WriteString(";")
+	return out.String()
+}
 
 /*
 	識別子を表す構造体型.
-	Toke 	: 識別子を示すトークン
+	Token 	: 識別子を示すトークン
 	Value	: 識別子の値
  */
 type Identifier struct {
@@ -84,15 +112,18 @@ type Identifier struct {
 }
 
 /*
-	Expression インターフェースと Node インターフェースを実装.
+	Node インターフェースと Expression インターフェースを override.
+	なぜ Expresison なのかというと, 識別子は値を生成するから.（ex. let x = valueIdentifier;）
+	ノードの種類を少なく保ち, 式として識別子を表現する.
  */
 func (i *Identifier) expressionNode()      {}
 func (i *Identifier) TokenLiteral() string { return i.Token.Literal }
+func (i *Identifier) String() string       { return i.Value }
 
 /*
-	return 文を表す構造体型.
+	return 文を表す構造体型.（ex. return <expression>;）
 	Toke	 	: let 文を示すトークン
-	ReturnValue	: 返す式
+	ReturnValue	: 値を返す式
  */
 type ReturnStatement struct {
 	Token       token.Token // 'return' トークン
@@ -100,7 +131,41 @@ type ReturnStatement struct {
 }
 
 /*
-	Expression インターフェースと Node インターフェースを実装.
+	Node インターフェースと Statement インターフェースを override.
  */
 func (rs *ReturnStatement) statementNode()       {}
 func (rs *ReturnStatement) TokenLiteral() string { return rs.Token.Literal }
+func (rs *ReturnStatement) String() string {
+	var out bytes.Buffer
+
+	out.WriteString(rs.TokenLiteral() + " ")
+
+	if rs.ReturnValue != nil {
+		out.WriteString(rs.ReturnValue.String())
+	}
+
+	out.WriteString(";")
+	return out.String()
+}
+
+/*
+	式文を表す構造体型. (ex. x + 10)
+	Token 		: 式の最初のトークン（上記の例の x）
+	Expression 	: 最初のトークンに続く式（上記の例の + 10）
+ */
+type ExpressionStatement struct {
+	Token      token.Token // 式の最初のトークン
+	Expression Expression
+}
+
+/*
+	Node インターフェースと Statement インターフェースを override.
+ */
+func (es *ExpressionStatement) statementNode()       {}
+func (es *ExpressionStatement) TokenLiteral() string { return es.Token.Literal }
+func (es *ExpressionStatement) String() string {
+	if es.Expression != nil {
+		es.Expression.String()
+	}
+	return ""
+}
