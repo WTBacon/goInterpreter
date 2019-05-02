@@ -5,6 +5,7 @@ import (
 	"github.com/WTBacon/goInterpreter/ast"
 	"github.com/WTBacon/goInterpreter/lexer"
 	"github.com/WTBacon/goInterpreter/token"
+	"strconv"
 )
 
 /*
@@ -64,6 +65,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
 	// IDENT トークンは, Identifier ノードにパースする.
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
+	// INT トークンは, IntegerLiteral ノードにパースする.
+	p.registerPrefix(token.INT, p.parserIntegerLiteral)
 
 	// 2つのトークンを読み込む.
 	// 1回目で, peekToken がセットされる.
@@ -242,3 +245,17 @@ const (
 	PREFIX       // -X または !X
 	CALL         // myFunction(X)
 )
+
+func (p *Parser) parserIntegerLiteral() ast.Expression {
+	lit := &ast.IntegerLiteral{Token: p.curToken}
+
+	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
+	if err != nil {
+		msg := fmt.Sprintf("could not parse %q as integer", p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+
+	lit.Value = value
+	return lit
+}

@@ -169,3 +169,20 @@ func (es *ExpressionStatement) String() string {
 	}
 	return ""
 }
+
+/*
+	整数リテラルを表す構造体型.
+	Token : 整数リテラルを表すトークン
+	Value : 整数リテラル
+ */
+type IntegerLiteral struct {
+	Token token.Token
+	Value int64
+}
+
+/*
+	Node インターフェースと Statement インターフェースを override.
+ */
+func (il *IntegerLiteral) expressionNode()      {}
+func (il *IntegerLiteral) TokenLiteral() string { return il.Token.Literal }
+func (il *IntegerLiteral) String() string       { return il.Token.Literal }
