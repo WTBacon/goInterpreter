@@ -9,10 +9,12 @@ import (
 
 /*
 	構文解析器（パーサー）を表す構造体型.
-	l        	: 字句解析器インスタンスへのポインタ
-	curToken 	: 現在調べているトークン
-	peekToken 	: 次に調べるトークン
-	errors		: 構文解析中のエラー
+	l        		: 字句解析器インスタンスへのポインタ
+	curToken 		: 現在調べているトークン
+	peekToken 		: 次に調べるトークン
+	errors			: 構文解析中のエラー
+	prefixParseFns	: 前置構文解析関数のマップ
+	infixParseFns 	: 中置構文解析関数のマップ
 }
  */
 type Parser struct {
@@ -26,6 +28,30 @@ type Parser struct {
 }
 
 /*
+	任意のトークンタイプに遭遇するたびに, 対応する構文解析関数が呼ばれる.
+	これらの関数は適切な式を構文解析し, 式を表現するASTノード（Expressionノード）を返す.
+	トークンタイプごとに, 最大２つの構文解析関数が関連づけられる.
+ */
+type (
+	prefixParseFn func() ast.Expression              // 前置構文解析関数（prefix parsing function）
+	infixParseFn func(ast.Expression) ast.Expression // 中置構文解析関数（infix parsing function）
+)
+
+/*
+	prefixParseFns マップにエントリを追加するヘルパーメソッド.
+ */
+func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
+	p.prefixParseFns[tokenType] = fn
+}
+
+/*
+	infixParseFns マップにエントリを追加するヘルパーメソッド.
+ */
+func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
+	p.infixParseFns[tokenType] = fn
+}
+
+/*
 	字句解析器を受け取って構文解析器のインスタンスを生成する関数.
  */
 func New(l *lexer.Lexer) *Parser {
@@ -33,12 +59,25 @@ func New(l *lexer.Lexer) *Parser {
 		l:      l,
 		errors: []string{},
 	}
+
+	// 前置構文解析関数の初期化
+	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
+	// IDENT トークンは, Identifier ノードにパースする.
+	p.registerPrefix(token.IDENT, p.parseIdentifier)
+
 	// 2つのトークンを読み込む.
 	// 1回目で, peekToken がセットされる.
 	p.nextToken()
 	// 2回目で, curToken　がセットされる.
 	p.nextToken()
 	return p
+}
+
+/*
+	現在のトークンを Identifier ノードにパースするメソッド.
+ */
+func (p *Parser) parseIdentifier() ast.Expression {
+	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 }
 
 /*
@@ -84,7 +123,7 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.RETURN:
 		return p.parseReturnStatement()
 	default:
-		return nil
+		return p.parseExpressionStatement()
 	}
 }
 
@@ -165,21 +204,41 @@ func (p *Parser) peekTokenIs(t token.TokenType) bool {
 }
 
 /*
-	任意のトークンタイプに遭遇するたびに, 対応する構文解析関数が呼ばれる.
-	これらの関数は適切な式を構文解析し, その式を表現するASTノードを返す.
-	トークンタイプごとに, 最大２つの構文解析関数が関連づけられる.
+	式文をパースするメソッド.
+	ExpressionStatement インスタンスを生成して, 式文が終了するまでトークンのポインタを進める.
  */
-type (
-	prefixParseFn func() ast.Expression              // 前置構文解析関数（prefix parsing function）
-	infixParseFn func(ast.Expression) ast.Expression // 中置構文解析関数（infix parsing function）
-)
+func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
+	stmt := &ast.ExpressionStatement{Token: p.curToken}
+
+	stmt.Expression = p.parseExpression(LOWEST)
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+	return stmt
+}
 
 /*
-	prefixParseFns マップと infixParseFns マップにエントリを追加するヘルパーメソッド.
+	式を表すトークンの前置解析関数をマップから入手して, 構文解析して Expression ノードを返す.
+	優先順位はのちのち設定する.
  */
-func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
-	p.prefixParseFns[tokenType] = fn
+func (p *Parser) parseExpression(precedence int) ast.Expression {
+	prefix := p.prefixParseFns[p.curToken.Type]
+	if prefix == nil {
+		return nil
+	}
+	leftExp := prefix()
+
+	return leftExp
 }
-func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
-	p.infixParseFns[tokenType] = fn
-}
+
+const (
+	_ int = iota
+	LOWEST
+	EQUALS       // ==
+	LESSGREATER  // > または <
+	SUM          // +
+	PRODUCT      // *
+	PREFIX       // -X または !X
+	CALL         // myFunction(X)
+)
