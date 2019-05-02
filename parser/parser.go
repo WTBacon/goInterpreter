@@ -67,6 +67,10 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	// INT トークンは, IntegerLiteral ノードにパースする.
 	p.registerPrefix(token.INT, p.parserIntegerLiteral)
+	// BANG トークンは, PrefixExpression ノードにパースする.
+	p.registerPrefix(token.BANG, p.parsePrefixExpression)
+	// MINUS トークンは, PrefixExpression ノードにパースする.
+	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 
 	// 2つのトークンを読み込む.
 	// 1回目で, peekToken がセットされる.
@@ -222,17 +226,28 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 }
 
 /*
+	式をパースするメソッド.
 	式を表すトークンの前置解析関数をマップから入手して, 構文解析して Expression ノードを返す.
 	優先順位はのちのち設定する.
  */
 func (p *Parser) parseExpression(precedence int) ast.Expression {
 	prefix := p.prefixParseFns[p.curToken.Type]
 	if prefix == nil {
+		p.noPrefixParseFnError(p.curToken.Type)
 		return nil
 	}
 	leftExp := prefix()
 
 	return leftExp
+}
+
+/*
+	式をパースした時に, 予期しない prefix に遭遇したら（prefixParseFnsになかったら）,
+	パーサーに Error を追加するメソッド.
+ */
+func (p *Parser) noPrefixParseFnError(t token.TokenType) {
+	msg := fmt.Sprintf("no prefix parse function for %s found", t)
+	p.errors = append(p.errors, msg)
 }
 
 const (
@@ -246,6 +261,11 @@ const (
 	CALL         // myFunction(X)
 )
 
+/*
+	整数リテラルをパースするメソッド.
+	IntegerLiteral インスタンスを生成して, 現在参照しているトークンのリテラルを Int 型にパースして,
+	IntegerLiteral インスタンスに入れて IntegerLiteral ノードを返す.
+ */
 func (p *Parser) parserIntegerLiteral() ast.Expression {
 	lit := &ast.IntegerLiteral{Token: p.curToken}
 
@@ -258,4 +278,20 @@ func (p *Parser) parserIntegerLiteral() ast.Expression {
 
 	lit.Value = value
 	return lit
+}
+
+/*
+	前置演算子をパースするメソッド.
+	PrefixExpression インスタンスを生成して, トークンを１つ進めて, PrefixExpression ノードを返す.
+ */
+func (p *Parser) parsePrefixExpression() ast.Expression {
+	expression := &ast.PrefixExpression{
+		Token:    p.curToken,
+		Operator: p.curToken.Literal,
+	}
+
+	p.nextToken()
+
+	expression.Right = p.parseExpression(PREFIX)
+	return expression
 }
