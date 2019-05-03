@@ -188,7 +188,7 @@ func (il *IntegerLiteral) TokenLiteral() string { return il.Token.Literal }
 func (il *IntegerLiteral) String() string       { return il.Token.Literal }
 
 /*
-	前置演算子を表す構造体型.（ex. <prefix operator><expression>;）
+	前置演算子を含む式の構造体型.（ex. <prefix operator><expression>;）
 	Token		: 前置演算子を表すトークン（上記の <prefix operator> ex.「!」）
 	Operator	: 前置演算子の文字列
 	Right 		: 前置演算子の右側の式（上記の <expression>）
@@ -209,6 +209,38 @@ func (pe *PrefixExpression) String() string {
 	out.WriteString("(")
 	out.WriteString(pe.Operator)
 	out.WriteString(pe.Right.String())
+	out.WriteString(")")
+
+	return out.String()
+}
+
+
+/*
+	中置演算子を含む式の構造体型.（ex. <expression> <infix operator> <expression>）
+	Token		: 中置演算子を表すトークン（上記の <prefix operator> ex.「!」）
+	Left		: 演算子の左側の式
+	Operator	: 演算子の文字列
+	Right 		: 演算子の右側の式
+ */
+type InfixExpression struct {
+	Token    token.Token // 演算子を表すトークン（ex.「+」）
+	Left     Expression
+	Operator string
+	Right    Expression
+}
+
+/*
+	Node インターフェースと Statement インターフェースを override.
+ */
+func (oe *InfixExpression) expressionNode()      {}
+func (oe *InfixExpression) TokenLiteral() string { return oe.Token.Literal }
+func (oe *InfixExpression) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("(")
+	out.WriteString(oe.Left.String())
+	out.WriteString(" " + oe.Operator + " ")
+	out.WriteString(oe.Right.String())
 	out.WriteString(")")
 
 	return out.String()

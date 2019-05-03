@@ -67,10 +67,21 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	// INT トークンは, IntegerLiteral ノードにパースする.
 	p.registerPrefix(token.INT, p.parserIntegerLiteral)
-	// BANG トークンは, PrefixExpression ノードにパースする.
+	// 以下のトークンは, PrefixExpression ノードにパースする.
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
-	// MINUS トークンは, PrefixExpression ノードにパースする.
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
+
+	// 中置構文解析関数の初期化
+	p.infixParseFns = make(map[token.TokenType]infixParseFn)
+	// 以下のトークンは, InfixExpression ノードにパースする.
+	p.registerInfix(token.PLUS, p.parseInfixExpression)
+	p.registerInfix(token.MINUS, p.parseInfixExpression)
+	p.registerInfix(token.SLASH, p.parseInfixExpression)
+	p.registerInfix(token.ASTERISK, p.parseInfixExpression)
+	p.registerInfix(token.EQ, p.parseInfixExpression)
+	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
+	p.registerInfix(token.LT, p.parseInfixExpression)
+	p.registerInfix(token.GT, p.parseInfixExpression)
 
 	// 2つのトークンを読み込む.
 	// 1回目で, peekToken がセットされる.
@@ -105,7 +116,7 @@ func (p *Parser) nextToken() {
 /*
 	パースして抽象構文木を出力するメソッド.
  */
-func (p *Parser) ParserProgram() *ast.Program {
+func (p *Parser) ParseProgram() *ast.Program {
 	program := &ast.Program{}
 	program.Statements = []ast.Statement{}
 
@@ -211,6 +222,33 @@ func (p *Parser) peekTokenIs(t token.TokenType) bool {
 }
 
 /*
+	式をパースするメソッド.
+	式を表すトークンの前置解析関数をマップから入手して, 構文解析して Expression ノードを返す.
+	優先順位はのちのち設定する.
+ */
+func (p *Parser) parseExpression(precedence int) ast.Expression {
+	prefix := p.prefixParseFns[p.curToken.Type]
+	if prefix == nil {
+		p.noPrefixParseFnError(p.curToken.Type)
+		return nil
+	}
+	leftExp := prefix()
+
+	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
+		infix := p.infixParseFns[p.peekToken.Type]
+		if infix == nil {
+			return leftExp
+		}
+
+		p.nextToken()
+
+		leftExp = infix(leftExp)
+	}
+
+	return leftExp
+}
+
+/*
 	式文をパースするメソッド.
 	ExpressionStatement インスタンスを生成して, 式文が終了するまでトークンのポインタを進める.
  */
@@ -226,19 +264,27 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 }
 
 /*
-	式をパースするメソッド.
-	式を表すトークンの前置解析関数をマップから入手して, 構文解析して Expression ノードを返す.
-	優先順位はのちのち設定する.
+	peekToken のトークンタイプに対応している優先順位を返すメソッド.
+	対応している優先順位がなければ, デフォルト値で LOWEST を返す.
  */
-func (p *Parser) parseExpression(precedence int) ast.Expression {
-	prefix := p.prefixParseFns[p.curToken.Type]
-	if prefix == nil {
-		p.noPrefixParseFnError(p.curToken.Type)
-		return nil
+func (p *Parser) peekPrecedence() int {
+	if p, ok := precedences[p.peekToken.Type]; ok {
+		return p
 	}
-	leftExp := prefix()
 
-	return leftExp
+	return LOWEST
+}
+
+/*
+	curToken のトークンタイプに対応している優先順位を返すメソッド.
+	対応している優先順位がなければ, デフォルト値で LOWEST を返す.
+ */
+func (p *Parser) curPrecedence() int {
+	if p, ok := precedences[p.curToken.Type]; ok {
+		return p
+	}
+
+	return LOWEST
 }
 
 /*
@@ -281,8 +327,8 @@ func (p *Parser) parserIntegerLiteral() ast.Expression {
 }
 
 /*
-	前置演算子をパースするメソッド.
-	PrefixExpression インスタンスを生成して, トークンを１つ進めて, PrefixExpression ノードを返す.
+	前置演算子を含む式をパースするメソッド.
+	PrefixExpression インスタンスを生成して, 前演算子を含む式をPrefixExpression ノードにパースして返す.
  */
 func (p *Parser) parsePrefixExpression() ast.Expression {
 	expression := &ast.PrefixExpression{
@@ -294,4 +340,37 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 
 	expression.Right = p.parseExpression(PREFIX)
 	return expression
+}
+
+/*
+	トークンタイプの優先順位マップ : トークンタイプとその優先順位を関連づける.
+ */
+var precedences = map[token.TokenType]int{
+	token.EQ:       EQUALS,
+	token.NOT_EQ:   EQUALS,
+	token.LT:       LESSGREATER,
+	token.GT:       LESSGREATER,
+	token.PLUS:     SUM,
+	token.MINUS:    SUM,
+	token.SLASH:    PRODUCT,
+	token.ASTERISK: PRODUCT,
+}
+
+/*
+	中置演算子を含む式をパースするメソッド.
+	InfixExpression インスタンスを生成して, 中演算子を含む式をInfixExpression ノードにパースして返す.
+ */
+func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
+	expression := &ast.InfixExpression{
+		Token:    p.curToken,
+		Operator: p.curToken.Literal,
+		Left:     left,
+	}
+
+	precedence := p.curPrecedence()
+	p.nextToken()
+	expression.Right = p.parseExpression(precedence)
+
+	return expression
+
 }
