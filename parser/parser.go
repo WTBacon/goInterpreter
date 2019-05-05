@@ -224,9 +224,11 @@ func (p *Parser) peekTokenIs(t token.TokenType) bool {
 /*
 	式をパースするメソッド.
 	式を表すトークンの前置解析関数をマップから入手して, 構文解析して Expression ノードを返す.
-	優先順位はのちのち設定する.
  */
 func (p *Parser) parseExpression(precedence int) ast.Expression {
+	defer untrace(trace("parseExpression"))
+
+	// curToken が前置演算子の場合のみパースを行う.
 	prefix := p.prefixParseFns[p.curToken.Type]
 	if prefix == nil {
 		p.noPrefixParseFnError(p.curToken.Type)
@@ -234,6 +236,9 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	}
 	leftExp := prefix()
 
+	// 一番外側の parseExpression() の precedence は LOWEST.
+	// 入れ子になった時は, 前回遭遇した中置演算子と, 次のトークン(セミコロンを除く中置演算子)の優先順位を比較.
+	// 次の中置演算子の優先順位の方が高ければパースする.
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
 		infix := p.infixParseFns[p.peekToken.Type]
 		if infix == nil {
@@ -242,6 +247,7 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 
 		p.nextToken()
 
+		// leftExp を再帰でしていることに注意.
 		leftExp = infix(leftExp)
 	}
 
@@ -253,6 +259,7 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	ExpressionStatement インスタンスを生成して, 式文が終了するまでトークンのポインタを進める.
  */
 func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
+	defer untrace(trace("parseExpressionStatement"))
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 
 	stmt.Expression = p.parseExpression(LOWEST)
@@ -313,6 +320,8 @@ const (
 	IntegerLiteral インスタンスに入れて IntegerLiteral ノードを返す.
  */
 func (p *Parser) parserIntegerLiteral() ast.Expression {
+	defer untrace(trace("parseIntegerLiteral"))
+
 	lit := &ast.IntegerLiteral{Token: p.curToken}
 
 	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
@@ -331,6 +340,8 @@ func (p *Parser) parserIntegerLiteral() ast.Expression {
 	PrefixExpression インスタンスを生成して, 前演算子を含む式をPrefixExpression ノードにパースして返す.
  */
 func (p *Parser) parsePrefixExpression() ast.Expression {
+	defer untrace(trace("parsePrefixExpression"))
+
 	expression := &ast.PrefixExpression{
 		Token:    p.curToken,
 		Operator: p.curToken.Literal,
@@ -359,16 +370,23 @@ var precedences = map[token.TokenType]int{
 /*
 	中置演算子を含む式をパースするメソッド.
 	InfixExpression インスタンスを生成して, 中演算子を含む式をInfixExpression ノードにパースして返す.
+	curToken が 中置演算子のときに呼ばれる.
+	ex. <expression>(Left) <infix operator>(curToken) <expression>(Right)
  */
 func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
+	defer untrace(trace("parseInfixExpression"))
+
 	expression := &ast.InfixExpression{
 		Token:    p.curToken,
 		Operator: p.curToken.Literal,
 		Left:     left,
 	}
 
+	// 中置演算子の優先順位を保持する.
 	precedence := p.curPrecedence()
+	// curToken を前進させる.
 	p.nextToken()
+	// 中置演算子の優先順位を保持しながら, Right の式をパースする.
 	expression.Right = p.parseExpression(precedence)
 
 	return expression
