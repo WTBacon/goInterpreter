@@ -214,7 +214,6 @@ func (pe *PrefixExpression) String() string {
 	return out.String()
 }
 
-
 /*
 	中置演算子を含む式の構造体型.（ex. <expression> <infix operator> <expression>）
 	Token		: 中置演算子を表すトークン（上記の <prefix operator> ex.「!」）
@@ -245,3 +244,20 @@ func (ie *InfixExpression) String() string {
 
 	return out.String()
 }
+
+/*
+	真偽値リテラルの構造体型.
+	Token	: 真偽値リテラルを表すトークン
+	Value 	: 真偽値リテラル
+ */
+type Boolean struct {
+	Token token.Token
+	Value bool
+}
+
+/*
+	Node インターフェースと Expression インターフェースを override.
+ */
+func (b *Boolean) expressionNode()      {}
+func (b *Boolean) TokenLiteral() string { return b.Token.Literal }
+func (b *Boolean) String() string       { return b.Token.Literal }
