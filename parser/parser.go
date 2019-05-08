@@ -67,12 +67,14 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	// INT トークンは, IntegerLiteral ノードにパースする.
 	p.registerPrefix(token.INT, p.parserIntegerLiteral)
-	// 以下のトークンは, PrefixExpression ノードにパースする.
+	// Prefix となるトークンは, PrefixExpression ノードにパースする.
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
-	//
+	// 真偽値トークンは, Boolean ノードにパースする.
 	p.registerPrefix(token.TRUE, p.parseBoolean)
 	p.registerPrefix(token.FALSE, p.parseBoolean)
+	// LPAREN トークンは, グループ化された式としてパースする.
+	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 
 	// 中置構文解析関数の初期化
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
@@ -231,17 +233,17 @@ func (p *Parser) peekTokenIs(t token.TokenType) bool {
 func (p *Parser) parseExpression(precedence int) ast.Expression {
 	defer untrace(trace("parseExpression"))
 
-	// curToken が前置演算子の場合のみパースを行う.
 	prefix := p.prefixParseFns[p.curToken.Type]
+	// curToken が前置演算子の場合のみパースを継続する.
 	if prefix == nil {
 		p.noPrefixParseFnError(p.curToken.Type)
 		return nil
 	}
 	leftExp := prefix()
 
-	// 一番外側の parseExpression() の precedence は LOWEST.
-	// 入れ子になった時は, 前回遭遇した中置演算子と, 次のトークン(セミコロンを除く中置演算子)の優先順位を比較.
-	// 次の中置演算子の優先順位の方が高ければパースする.
+	// peekToken の左結合力（peekPrecedence()）が, curTokenの右結合力（引数の precedence）より高ければ,
+	// これまで構文解析したもの（leftExp）は, 次の演算子に吸収される（infix(leftExp)）.
+	// グループ化された式をパースするとき, 演算子やリテラルが続く限り左に結合していく.（")"は LOWEST になる）
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
 		infix := p.infixParseFns[p.peekToken.Type]
 		if infix == nil {
@@ -250,7 +252,6 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 
 		p.nextToken()
 
-		// leftExp を再帰でしていることに注意.
 		leftExp = infix(leftExp)
 	}
 
@@ -352,6 +353,8 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 
 	p.nextToken()
 
+	// PREFIX より優先度が高いトークン（LPAREN）に遭遇しない限り,
+	// 後続のトークンが expression.Right としてパースされる.
 	expression.Right = p.parseExpression(PREFIX)
 	return expression
 }
@@ -360,14 +363,15 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 	トークンタイプの優先順位マップ : トークンタイプとその優先順位を関連づける.
  */
 var precedences = map[token.TokenType]int{
-	token.EQ:       EQUALS,
-	token.NOT_EQ:   EQUALS,
-	token.LT:       LESSGREATER,
-	token.GT:       LESSGREATER,
-	token.PLUS:     SUM,
-	token.MINUS:    SUM,
-	token.SLASH:    PRODUCT,
-	token.ASTERISK: PRODUCT,
+	token.EQ:       EQUALS,      // =
+	token.NOT_EQ:   EQUALS,      // !=
+	token.LT:       LESSGREATER, // <
+	token.GT:       LESSGREATER, // >
+	token.PLUS:     SUM,         // +
+	token.MINUS:    SUM,         // -
+	token.SLASH:    PRODUCT,     // /
+	token.ASTERISK: PRODUCT,     // *
+	token.LPAREN:   CALL,        // )
 }
 
 /*
@@ -396,6 +400,28 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 
 }
 
+/*
+	真偽値リテラルをパースするメソッド.
+	Boolean インスタンスを生成して, Booleanノードにパースして返す.
+ */
 func (p *Parser) parseBoolean() ast.Expression {
+	defer untrace(trace("parseBoolean"))
 	return &ast.Boolean{Token: p.curToken, Value: p.curTokenIs(token.TRUE)}
+}
+
+/*
+	グループ化された式をパースするメソッド.
+	curToken が LPAREN トークン（"("）のときに呼び出され,
+	最初の parseExpression において RPAREN トークン（")"）の優先順位（LOWEST）が参照されるまでパースする.
+*/
+func (p *Parser) parseGroupedExpression() ast.Expression {
+	defer untrace(trace("parseGroupedExpression"))
+	p.nextToken()
+
+	exp := p.parseExpression(LOWEST)
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return exp
 }

@@ -234,6 +234,9 @@ func TestParsingPrefixExpressions(t *testing.T) {
 	}
 }
 
+/*
+	parseInfixExpression のテスト
+ */
 func TestParsingInfixExpressions(t *testing.T) {
 	infixTests := []struct {
 		input      string
@@ -277,6 +280,9 @@ func TestParsingInfixExpressions(t *testing.T) {
 	}
 }
 
+/*
+	演算子の優先順位のテスト
+ */
 func TestOperatorPrecedenceParsing(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -345,6 +351,30 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 		{
 			"3 < 5 == true",
 			"((3 < 5) == true)",
+		},
+		{
+			"1 + (2 + 3) + 4",
+			"((1 + (2 + 3)) + 4)",
+		},
+		{
+			"(5 + 5) * 2",
+			"((5 + 5) * 2)",
+		},
+		{
+			"2 / (5 + 5)",
+			"(2 / (5 + 5))",
+		},
+		{
+			"(5 + 5) * 2 * (5 + 5)",
+			"(((5 + 5) * 2) * (5 + 5))",
+		},
+		{
+			"-(5 + 5)",
+			"(-(5 + 5))",
+		},
+		{
+			"!(true == true)",
+			"(!(true == true))",
 		},
 	}
 
@@ -454,6 +484,9 @@ func testIdentifier(t *testing.T, exp ast.Expression, value string) bool {
 	return true
 }
 
+/*
+	IntegerLiteral ノード, Identifier ノード, Boolean ノードのフィールドのテストをまとめた関数.
+ */
 func testLiteralExpression(
 	t *testing.T,
 	exp ast.Expression,
@@ -473,6 +506,9 @@ func testLiteralExpression(
 	return false
 }
 
+/*
+	Boolean ノードのフィールドをテストする関数.
+ */
 func testBooleanLiteral(t *testing.T, exp ast.Expression, value bool) bool {
 	bo, ok := exp.(*ast.Boolean)
 	if !ok {
@@ -494,6 +530,9 @@ func testBooleanLiteral(t *testing.T, exp ast.Expression, value bool) bool {
 	return true
 }
 
+/*
+	InfixExpression ノードのフィールドをテストする関数.
+ */
 func testInfixExpression(t *testing.T, exp ast.Expression, left interface{},
 	operator string, right interface{}) bool {
 
@@ -519,6 +558,9 @@ func testInfixExpression(t *testing.T, exp ast.Expression, left interface{},
 	return true
 }
 
+/*
+	parseBoolean() のテスト
+ */
 func TestBooleanExpression(t *testing.T) {
 	tests := []struct {
 		input           string
